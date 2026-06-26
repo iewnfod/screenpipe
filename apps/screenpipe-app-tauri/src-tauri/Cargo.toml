@@ -260,6 +260,11 @@ custom-protocol = ["tauri/custom-protocol"]
 # Source builds without this flag will show "auto-updates unavailable"
 official-build = []
 
+# Unlocked (cracked) build: disables all paywall / forced-login enforcement at
+# the source of every entitlement check. No-op when not enabled; the gate
+# functions still run their normal logic. Opt-in for self-built binaries.
+cracked = []
+
 # Enterprise build: updates are policy-managed (Intune/MDM or Screenpipe),
 # tauri.enterprise
 # bundle identifier, and the periodic telemetry sync that pushes screen + audio

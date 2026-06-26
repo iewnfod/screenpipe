@@ -1522,6 +1522,10 @@ impl SettingsStore {
     }
 
     pub fn app_entitled_or_dev(&self) -> bool {
+        // Cracked (unlocked) builds bypass every entitlement gate at the source.
+        if cfg!(feature = "cracked") {
+            return true;
+        }
         // Debug builds (`bun tauri dev`, e2e, signed dev builds) are never gated.
         // Release builds must not be bypassable via a runtime env var.
         if cfg!(debug_assertions) {
@@ -1556,6 +1560,10 @@ impl SettingsStore {
     }
 
     fn cloud_transcription_entitled(&self) -> bool {
+        // Cracked (unlocked) builds bypass every entitlement gate at the source.
+        if cfg!(feature = "cracked") {
+            return true;
+        }
         // Legacy cloud subscribers keep working during the paid-plan rollout.
         if self.user.cloud_subscribed == Some(true) {
             return true;

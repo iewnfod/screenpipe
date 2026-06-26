@@ -811,6 +811,9 @@ async installRegistrySkill(repo: string, gitRef: string, path: string, name: str
 async isEnterpriseBuildCmd() : Promise<boolean> {
     return await TAURI_INVOKE("is_enterprise_build_cmd");
 },
+async isCrackedBuild() : Promise<boolean> {
+    return await TAURI_INVOKE("is_cracked_build");
+},
 /**
  * Check if click-through is currently enabled (Windows only)
  */

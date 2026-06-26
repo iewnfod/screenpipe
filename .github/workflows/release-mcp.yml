@@ -1,9 +1,6 @@
 name: Release MCP
 
 on:
-  push:
-    tags:
-      - "mcp-v*"
   workflow_dispatch:
 
 permissions:

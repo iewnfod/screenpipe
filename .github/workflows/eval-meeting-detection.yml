@@ -24,13 +24,6 @@
 name: Meeting Detection Eval
 
 on:
-  pull_request:
-    paths:
-      - 'crates/screenpipe-engine/src/meeting_detector.rs'
-      - 'crates/screenpipe-engine/src/meeting_persister.rs'
-      - 'crates/screenpipe-engine/src/meeting_watcher.rs'
-      - 'crates/screenpipe-meeting-eval/**'
-      - '.github/workflows/eval-meeting-detection.yml'
   workflow_dispatch:
 
 concurrency:

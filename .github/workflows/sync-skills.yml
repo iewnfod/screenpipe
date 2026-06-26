@@ -14,10 +14,6 @@
 name: sync-skills
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "crates/screenpipe-core/assets/skills/**"
   workflow_dispatch:
 
 permissions:

@@ -620,6 +620,15 @@ pub fn is_enterprise_build_cmd(app_handle: tauri::AppHandle) -> bool {
     is_enterprise_build(&app_handle)
 }
 
+/// Whether this binary was compiled with the `cracked` feature, which disables
+/// all paywall / forced-login enforcement at the source of every entitlement
+/// check. Read once by the frontend (cached) so the in-process gates honor it.
+#[tauri::command]
+#[specta::specta]
+pub fn is_cracked_build() -> bool {
+    cfg!(feature = "cracked")
+}
+
 /// Return the macOS bundle identifier of the running app
 /// (e.g. `screenpi.pe`, `screenpi.pe.beta`, `screenpi.pe.dev`,
 /// `screenpi.pe.enterprise`). The onboarding stuck-screen surfaces this so

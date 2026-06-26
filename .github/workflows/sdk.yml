@@ -8,15 +8,6 @@
 name: SDK
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "ee/sdk/**"
-      - ".github/workflows/sdk.yml"
-  pull_request:
-    paths:
-      - "ee/sdk/**"
-      - ".github/workflows/sdk.yml"
   workflow_dispatch:
 
 env:

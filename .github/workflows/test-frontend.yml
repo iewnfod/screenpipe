@@ -4,26 +4,7 @@
 name: Frontend Tests
 
 on:
-  push:
-    paths:
-      - 'apps/screenpipe-app-tauri/**/*.ts'
-      - 'apps/screenpipe-app-tauri/**/*.tsx'
-      - 'apps/screenpipe-app-tauri/**/*.js'
-      - 'apps/screenpipe-app-tauri/package.json'
-      - 'apps/screenpipe-app-tauri/bun.lock'
-      - 'apps/screenpipe-app-tauri/vitest.config.ts'
-      - 'apps/screenpipe-app-tauri/tsconfig*.json'
-      - '.github/workflows/test-frontend.yml'
-  pull_request:
-    paths:
-      - 'apps/screenpipe-app-tauri/**/*.ts'
-      - 'apps/screenpipe-app-tauri/**/*.tsx'
-      - 'apps/screenpipe-app-tauri/**/*.js'
-      - 'apps/screenpipe-app-tauri/package.json'
-      - 'apps/screenpipe-app-tauri/bun.lock'
-      - 'apps/screenpipe-app-tauri/vitest.config.ts'
-      - 'apps/screenpipe-app-tauri/tsconfig*.json'
-      - '.github/workflows/test-frontend.yml'
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}

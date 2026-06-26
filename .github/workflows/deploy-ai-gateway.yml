@@ -25,11 +25,6 @@
 name: Deploy ai-gateway
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "packages/ai-gateway/**"
-      - ".github/workflows/deploy-ai-gateway.yml"
   # Manual trigger for redeploys / rollbacks without a code change.
   workflow_dispatch:
 

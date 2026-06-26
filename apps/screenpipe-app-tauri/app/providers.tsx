@@ -15,6 +15,7 @@ import { forwardRef } from "react";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { useUpdateListener } from "@/components/update-banner";
 import { AppEntitlementGate } from "@/components/app-entitlement-gate";
+import { prefetchCrackedFlag } from "@/lib/app-entitlement";
 import { DeeplinkHandler } from "@/components/deeplink-handler";
 import { usePathname } from "next/navigation";
 
@@ -55,6 +56,11 @@ export const Providers = forwardRef<
   const isOverlay = pathname === "/shortcut-reminder";
   useEffect(() => {
     setMounted(true);
+    // Kick off the one-time IPC read of the `cracked` build flag so the
+    // frontend entitlement gates (isDevBillingBypassEnabled → hasAppEntitlement)
+    // honor an unlocked binary. Fire-and-forget; cached module-level. Must run
+    // before AppEntitlementGate renders (mounted flip below renders it).
+    prefetchCrackedFlag();
   }, []);
 
   useEffect(() => {

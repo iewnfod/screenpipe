@@ -10,6 +10,7 @@ import { toast } from "@/components/ui/use-toast";
 import { ToastAction } from "@/components/ui/toast";
 import posthog from "posthog-js";
 import { commands } from "@/lib/utils/tauri";
+import { isCrackedBuildCached } from "@/lib/app-entitlement";
 import { screenpipeWebUrl } from "@/lib/web-url";
 
 const CHECK_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
@@ -112,6 +113,9 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   tokenRef.current = settings.user?.token;
 
   const handleSessionExpired = useCallback(async () => {
+    // Unlocked (cracked) builds must never get force-signed-out, which would
+    // null `user` and re-trigger the entitlement/login wall mid-session.
+    if (isCrackedBuildCached()) return;
     if (!tokenRef.current) return; // already signed out
     console.warn("auth-guard: session expired, clearing");
     posthog.capture("session_expired");
@@ -208,6 +212,9 @@ export function installAuthInterceptor(
           : input.url;
 
     if (isScreenpipeApi(url) && (res.status === 401 || res.status === 403)) {
+      // Unlocked (cracked) builds must never get force-signed-out, which would
+      // null `user` and re-trigger the entitlement/login wall mid-session.
+      if (isCrackedBuildCached()) return res;
       const token = getToken();
       if (token) {
         console.warn("auth-interceptor: 401 from", url);

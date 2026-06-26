@@ -1,0 +1,194 @@
+# Build the Linux desktop app (deb + AppImage) from main and upload as a
+# workflow artifact. Mirrors the Linux leg of release-app.yml so the binary is
+# the same one official releases ship — just without publishing a release.
+#
+# The `cracked` Rust feature disables paywall / forced-login enforcement at
+# the source of every entitlement check; `official-build` enables auto-updates.
+name: Build Linux
+
+on:
+  push:
+    branches: [main, build]
+  workflow_dispatch:
+
+# Cancel superseded runs on the same ref so consecutive main pushes don't
+# queue up stale, expensive (Rust) builds.
+concurrency:
+  group: build-linux-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TARGET: x86_64-unknown-linux-gnu
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.10
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ env.TARGET }}
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "apps/screenpipe-app-tauri/src-tauri -> target"
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            g++ \
+            ffmpeg \
+            tesseract-ocr \
+            cmake \
+            clang \
+            libavformat-dev \
+            libavfilter-dev \
+            libavdevice-dev \
+            libssl-dev \
+            libtesseract-dev \
+            libxdo-dev \
+            libsdl2-dev \
+            libclang-dev \
+            libxtst-dev \
+            libx11-dev \
+            libxext-dev \
+            libxrandr-dev \
+            libxinerama-dev \
+            libxcursor-dev \
+            libxi-dev \
+            libgl1-mesa-dev \
+            libasound2-dev \
+            libpulse-dev \
+            curl \
+            pkg-config \
+            libsqlite3-dev \
+            libbz2-dev \
+            zlib1g-dev \
+            libonig-dev \
+            libayatana-appindicator3-dev \
+            libsamplerate-dev \
+            libwebrtc-audio-processing-dev \
+            libpipewire-0.3-dev \
+            libgtk-3-dev \
+            librsvg2-dev \
+            patchelf \
+            libwebkit2gtk-4.1-dev \
+            xdg-desktop-portal-gtk \
+            libsecret-1-dev \
+            libopenblas-dev
+          # antirez-asr-sys build script emits -llibopenblas (double lib prefix).
+          # Create a symlink so the linker finds it, and set OPENBLAS_PATH with lib/ subdir.
+          sudo mkdir -p /usr/lib/x86_64-linux-gnu/openblas/lib
+          sudo ln -sf /usr/lib/x86_64-linux-gnu/libopenblas.so /usr/lib/x86_64-linux-gnu/openblas/lib/liblibopenblas.so
+          sudo ln -sf /usr/lib/x86_64-linux-gnu/libopenblas.a /usr/lib/x86_64-linux-gnu/openblas/lib/liblibopenblas.a
+          echo "OPENBLAS_PATH=/usr/lib/x86_64-linux-gnu/openblas" >> $GITHUB_ENV
+
+      - name: Use production config for release
+        shell: bash
+        run: cp apps/screenpipe-app-tauri/src-tauri/tauri.prod.conf.json apps/screenpipe-app-tauri/src-tauri/tauri.conf.json
+
+      - name: Run pre_build.js
+        working-directory: ${{ github.workspace }}/apps/screenpipe-app-tauri
+        run: bun ./scripts/pre_build.js
+        env:
+          SCREENPIPE_RELEASE_TARGET: ${{ env.TARGET }}
+
+      - name: Install frontend dependencies
+        working-directory: ${{ github.workspace }}/apps/screenpipe-app-tauri
+        run: bun install
+
+      - name: Build (Linux)
+        working-directory: apps/screenpipe-app-tauri
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CI: true
+          GGML_NATIVE: "OFF"
+          GGML_AVX512: "OFF"
+          GGML_AVX512_VBMI: "OFF"
+          GGML_AVX512_VNNI: "OFF"
+          GGML_AVX512_BF16: "OFF"
+          CMAKE_ARGS: -DGGML_NATIVE=OFF -DGGML_AVX512=OFF -DGGML_AVX512_VBMI=OFF -DGGML_AVX512_VNNI=OFF -DGGML_AVX512_BF16=OFF
+          NO_STRIP: true
+        run: |
+          # Wrap ldd so linuxdeploy doesn't crash on the statically-linked bun sidecar.
+          # bun is built with musl and ldd exits 1 on it, which kills linuxdeploy's GTK plugin.
+          sudo mv /usr/bin/ldd /usr/bin/ldd.real
+          sudo tee /usr/bin/ldd > /dev/null << 'WRAPPER'
+          #!/bin/bash
+          if [[ "$1" == *"/bun"* ]] || [[ "$1" == *"bun-"* ]]; then
+            echo "	statically linked"
+            exit 0
+          fi
+          exec /usr/bin/ldd.real "$@"
+          WRAPPER
+          sudo chmod +x /usr/bin/ldd
+
+          # Tell linuxdeploy to deploy GTK3 plugin dependencies (bundles libsecret etc.)
+          export DEPLOY_GTK_VERSION=3
+
+          # Clean stale bundle artifacts from cache - prevents old .deb/.AppImage
+          # files from accumulating and being uploaded alongside the current version
+          BUNDLE_DIR="src-tauri/target/${TARGET}/release/bundle"
+          echo "Cleaning stale bundle artifacts from ${BUNDLE_DIR}..."
+          rm -rf "${BUNDLE_DIR}" 2>/dev/null || true
+
+          # cracked disables paywall/login enforcement at the source;
+          # official-build enables auto-updates; redact-onnx-cpu is the Linux PII engine.
+          bunx tauri build --verbose --target ${TARGET} --features cracked,official-build,redact-onnx-cpu
+
+          # Fix ABI mismatch: the AppImage bundles libs from Ubuntu 24.04 but
+          # on distros like Fedora 43 with newer system libs, symbols are missing
+          # (e.g. g_variant_builder_init_static in GLib, MOUNT_2_40 in libmount).
+          # Remove bundled GLib/GIO/GObject/GModule/libmount/libblkid/libpcre2
+          # so system versions are used. These are core libs on all Linux desktops.
+          echo "Removing bundled system libraries to prevent ABI mismatch on newer distros..."
+          curl -fsSL -o /tmp/appimagetool https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x /tmp/appimagetool
+          find src-tauri/target/${TARGET}/release/bundle/appimage/ -name "*.AppImage" -exec bash -c '
+            APPIMAGE="$1"
+            echo "Patching $APPIMAGE to remove bundled GLib"
+            chmod +x "$APPIMAGE"
+            "$APPIMAGE" --appimage-extract
+            rm -f squashfs-root/usr/lib/libglib-2.0.so* \
+                  squashfs-root/usr/lib/libgobject-2.0.so* \
+                  squashfs-root/usr/lib/libgio-2.0.so* \
+                  squashfs-root/usr/lib/libgmodule-2.0.so* \
+                  squashfs-root/usr/lib/libmount.so* \
+                  squashfs-root/usr/lib/libblkid.so* \
+                  squashfs-root/usr/lib/libpcre2-8.so*
+            echo "Removed bundled GLib libs, repacking AppImage..."
+            ARCH=x86_64 /tmp/appimagetool squashfs-root "$APPIMAGE"
+            rm -rf squashfs-root
+            echo "AppImage repacked successfully"
+          ' _ {} \;
+
+      - name: Upload deb
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenpipe-linux-x86_64-deb
+          path: apps/screenpipe-app-tauri/src-tauri/target/${{ env.TARGET }}/release/bundle/deb/*.deb
+          if-no-files-found: error
+
+      - name: Upload AppImage
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenpipe-linux-x86_64-appimage
+          path: apps/screenpipe-app-tauri/src-tauri/target/${{ env.TARGET }}/release/bundle/appimage/*.AppImage
+          if-no-files-found: error

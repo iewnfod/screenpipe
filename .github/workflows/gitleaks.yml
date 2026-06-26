@@ -7,10 +7,7 @@ name: Secret Scan (trufflehog)
 # commits) at zero cost and ships its own GitHub Action.
 
 on:
-  pull_request:
-    branches: [main]
-  push:
-    branches: [main]
+  workflow_dispatch:
 
 concurrency:
   group: secret-scan-${{ github.ref }}

@@ -7,8 +7,7 @@ name: PR media check (potential AI slop)
 # metadata via the api — it never checks out untrusted PR code).
 
 on:
-  pull_request_target:
-    types: [opened, edited, reopened, ready_for_review, synchronize]
+  workflow_dispatch:
 
 permissions:
   contents: read

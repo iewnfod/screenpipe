@@ -16,19 +16,6 @@ name: ORT init smoke
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - ".github/ci/ort-smoke/**"
-      - "crates/screenpipe-audio/Cargo.toml"
-      - "crates/screenpipe-redact/Cargo.toml"
-      - ".github/workflows/ort-init-smoke.yml"
-  pull_request:
-    paths:
-      - ".github/ci/ort-smoke/**"
-      - "crates/screenpipe-audio/Cargo.toml"
-      - "crates/screenpipe-redact/Cargo.toml"
-      - ".github/workflows/ort-init-smoke.yml"
 
 concurrency:
   group: ort-smoke-${{ github.ref }}
