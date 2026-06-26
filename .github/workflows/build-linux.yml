@@ -101,7 +101,24 @@ jobs:
 
       - name: Use production config for release
         shell: bash
-        run: cp apps/screenpipe-app-tauri/src-tauri/tauri.prod.conf.json apps/screenpipe-app-tauri/src-tauri/tauri.conf.json
+        run: |
+          cp apps/screenpipe-app-tauri/src-tauri/tauri.prod.conf.json apps/screenpipe-app-tauri/src-tauri/tauri.conf.json
+          # Disable the Tauri updater: the prod config ships a publicKey and
+          # createUpdaterArtifacts=true, which makes `tauri build` hard-fail
+          # without TAURI_SIGNING_PRIVATE_KEY (the official signing secret we
+          # don't have). Auto-update is pointless for a self-built binary
+          # anyway (the endpoint + signature belong to official releases), so
+          # turn both knobs off in the working copy only — the repo's
+          # tauri.prod.conf.json is left untouched for upstream merges.
+          node -e '
+            const fs = require("fs");
+            const p = "apps/screenpipe-app-tauri/src-tauri/tauri.conf.json";
+            const c = JSON.parse(fs.readFileSync(p, "utf8"));
+            if (c.bundle) c.bundle.createUpdaterArtifacts = false;
+            if (c.plugins && c.plugins.updater) c.plugins.updater.active = false;
+            fs.writeFileSync(p, JSON.stringify(c, null, 2));
+            console.log("updater disabled in working tauri.conf.json");
+          '
 
       - name: Run pre_build.js
         working-directory: ${{ github.workspace }}/apps/screenpipe-app-tauri
@@ -150,7 +167,10 @@ jobs:
           rm -rf "${BUNDLE_DIR}" 2>/dev/null || true
 
           # cracked disables paywall/login enforcement at the source;
-          # official-build enables auto-updates; redact-onnx-cpu is the Linux PII engine.
+          # official-build marks the binary as an official-style build (avoids the
+          # "auto-updates unavailable" notice in-app); redact-onnx-cpu is the
+          # Linux PII engine. The updater itself is disabled above in
+          # tauri.conf.json (no signing key available for a self-build).
           bunx tauri build --verbose --target ${TARGET} --features cracked,official-build,redact-onnx-cpu
 
           # Fix ABI mismatch: the AppImage bundles libs from Ubuntu 24.04 but
